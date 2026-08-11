@@ -8,10 +8,23 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import com.example.ytshortsblocker.overlay.BlockOverlayController
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 
 class ShortsAccessibilityService : AccessibilityService() {
 
     private val handler = Handler(Looper.getMainLooper())
+
+    /** Main dispatcher: the overlay touches WindowManager, which must run on the main thread. */
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    private val overlay by lazy { BlockOverlayController(this) }
 
     private var lastEvaluationAt = 0L
     private var lastDumpAt = 0L
@@ -53,6 +66,33 @@ class ShortsAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         Log.d(TAG, "onServiceConnected — watching ${ShortsSignature.YOUTUBE_PACKAGE}")
         Log.d(TAG, "DEBUG_DUMP_TREE=$DEBUG_DUMP_TREE (dumps go to tag '$DUMP_TAG')")
+        observeBlockCondition()
+    }
+
+    /**
+     * The block fires only when both conditions hold: the budget is spent AND Shorts is actually on
+     * screen. distinctUntilChanged means we act on transitions, not on every emission, so the back
+     * action fires once per block rather than continuously.
+     */
+    private fun observeBlockCondition() {
+        scope.launch {
+            combine(
+                ShortsDetectionState.isShortsOnScreen,
+                BlockerState.budgetExhausted,
+            ) { onScreen, exhausted -> onScreen && exhausted }
+                .distinctUntilChanged()
+                .collect { shouldBlock ->
+                    if (shouldBlock) {
+                        Log.d(TAG, "blocking Shorts")
+                        // Belt and braces: nudge YouTube off Shorts straight away, covering the few
+                        // frames before the overlay is actually drawn.
+                        performGlobalAction(GLOBAL_ACTION_BACK)
+                        overlay.show(BlockerState.limitMinutes.value)
+                    } else {
+                        overlay.hide()
+                    }
+                }
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -94,11 +134,28 @@ class ShortsAccessibilityService : AccessibilityService() {
 
     override fun onUnbind(intent: Intent?): Boolean {
         Log.d(TAG, "onUnbind — service switched off")
+        teardown()
+        return super.onUnbind(intent)
+    }
+
+    override fun onDestroy() {
+        teardown()
+        super.onDestroy()
+    }
+
+    /**
+     * The overlay is attached to the window manager, not to this service, so nothing removes it
+     * automatically. Failing to do this here would leave a black screen covering the phone with no
+     * way to dismiss it.
+     */
+    private fun teardown() {
         handler.removeCallbacksAndMessages(null)
+        // hideNow, not hide: a pending delayed removal would never run once we are gone.
+        overlay.hideNow()
+        scope.cancel()
         stableShorts = false
         pendingShorts = null
         ShortsDetectionState.set(false)
-        return super.onUnbind(intent)
     }
 
     // ----- Debounce -----

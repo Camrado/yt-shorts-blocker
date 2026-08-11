@@ -17,6 +17,11 @@ object BlockerState {
     /** True once today's Shorts usage has reached the daily limit. */
     val budgetExhausted: StateFlow<Boolean> = _budgetExhausted.asStateFlow()
 
+    private val _limitMinutes = MutableStateFlow(30)
+
+    /** Today's limit, mirrored here so the overlay can show it without reading DataStore. */
+    val limitMinutes: StateFlow<Int> = _limitMinutes.asStateFlow()
+
     private val _serviceRunning = MutableStateFlow(false)
 
     /** True while the foreground service is alive. */
@@ -24,6 +29,10 @@ object BlockerState {
 
     internal fun setBudgetExhausted(value: Boolean) {
         _budgetExhausted.value = value
+    }
+
+    internal fun setLimitMinutes(value: Int) {
+        _limitMinutes.value = value
     }
 
     internal fun setServiceRunning(value: Boolean) {

@@ -79,6 +79,9 @@ class UsageTrackingService : Service() {
             CoroutineScope(Dispatchers.IO).launch { repository.addUsageSeconds(unsaved) }
         }
 
+        // Never leave the blocker latched on with nothing left to clear it: if the timer is gone
+        // there is nothing keeping the budget state truthful, so fail open.
+        BlockerState.setBudgetExhausted(false)
         BlockerState.setServiceRunning(false)
         Log.d(TAG, "service stopped (flushed ${unsaved}s)")
         super.onDestroy()
@@ -100,6 +103,7 @@ class UsageTrackingService : Service() {
                 enabled = isEnabled
                 limitMinutes = limit
                 usageSeconds = used
+                BlockerState.setLimitMinutes(limit)
 
                 val nowExhausted = isEnabled && used >= limit * 60
                 if (nowExhausted != exhausted) {
