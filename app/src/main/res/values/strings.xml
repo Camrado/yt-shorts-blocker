@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">YT Shorts Blocker</string>
+    <string name="accessibility_service_label">YT Shorts Blocker</string>
+    <string name="accessibility_service_description">Watches the YouTube app so it can tell when you are viewing Shorts, and blocks Shorts once your daily limit is used up. It does not read or send any other app\'s content.</string>
 </resources>
