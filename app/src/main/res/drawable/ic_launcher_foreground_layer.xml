@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Adaptive-icon foreground.
+
+    The layer is rendered on a 108dp canvas but launchers only guarantee the central 72dp is
+    visible — everything outside can be clipped by the circle/squircle mask. The logo artwork is
+    inset by 16dp on each side so the shield lands inside that safe zone instead of losing its
+    edges to the mask.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:left="16dp"
+        android:top="16dp"
+        android:right="16dp"
+        android:bottom="16dp"
+        android:drawable="@mipmap/ic_launcher_logo" />
+</layer-list>
