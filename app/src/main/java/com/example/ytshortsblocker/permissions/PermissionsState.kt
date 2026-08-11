@@ -14,15 +14,13 @@ import androidx.lifecycle.LifecycleEventObserver
 data class PermissionsState(
     val accessibility: Boolean,
     val overlay: Boolean,
-    val notifications: Boolean,
 ) {
-    val allGranted: Boolean get() = accessibility && overlay && notifications
+    val allGranted: Boolean get() = accessibility && overlay
 
     companion object {
         fun read(context: Context) = PermissionsState(
             accessibility = AppPermissions.isAccessibilityServiceEnabled(context),
             overlay = AppPermissions.canDrawOverlays(context),
-            notifications = AppPermissions.hasNotificationPermission(context),
         )
     }
 }

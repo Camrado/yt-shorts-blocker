@@ -3,11 +3,6 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
-    <!-- Keeps the usage timer alive while you are inside YouTube. -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <application
         android:allowBackup="true"
@@ -30,19 +25,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!--
-            foregroundServiceType is mandatory from Android 14. "specialUse" is the honest category
-            for usage monitoring; the property below is the required justification string.
-        -->
-        <service
-            android:name=".service.UsageTrackingService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Tracks time spent in YouTube Shorts to enforce a user-set daily limit" />
-        </service>
 
         <service
             android:name=".service.ShortsAccessibilityService"

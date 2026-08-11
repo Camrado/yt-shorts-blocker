@@ -1,12 +1,18 @@
 package com.example.ytshortsblocker.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -36,12 +42,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.example.ytshortsblocker.data.DayUsage
 import com.example.ytshortsblocker.data.SettingsRepository
 import com.example.ytshortsblocker.service.BlockerState
 import com.example.ytshortsblocker.service.ShortsDetectionState
-import com.example.ytshortsblocker.service.UsageTrackingService
 import com.example.ytshortsblocker.ui.theme.YTShortsBlockerTheme
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.format.TextStyle
+import java.util.Locale
 
 @Composable
 fun SettingsScreen(
@@ -58,16 +67,10 @@ fun SettingsScreen(
 
     val shortsOnScreen by ShortsDetectionState.isShortsOnScreen.collectAsState()
     val budgetExhausted by BlockerState.budgetExhausted.collectAsState()
-    val serviceRunning by BlockerState.serviceRunning.collectAsState()
+    val monitoringActive by BlockerState.monitoringActive.collectAsState()
+    val history by repository.history.collectAsState(initial = emptyList())
 
     LaunchedEffect(Unit) { repository.rolloverIfNewDay() }
-
-    // The service's own lifetime follows the toggle: it stops itself when disabled, and this
-    // starts it again when enabled. Starting a foreground service is only allowed while the app
-    // is in the foreground, which it is whenever this screen is showing.
-    LaunchedEffect(enabled) {
-        if (enabled) UsageTrackingService.start(context) else UsageTrackingService.stop(context)
-    }
 
     SettingsContent(
         limitMinutes = limitMinutes,
@@ -75,7 +78,8 @@ fun SettingsScreen(
         usageSeconds = usageSeconds,
         shortsOnScreen = shortsOnScreen,
         budgetExhausted = budgetExhausted,
-        serviceRunning = serviceRunning,
+        monitoringActive = monitoringActive,
+        history = history,
         onLimitChange = { newLimit -> scope.launch { repository.setDailyLimitMinutes(newLimit) } },
         onEnabledChange = { value -> scope.launch { repository.setEnabled(value) } },
         onOpenPermissions = onOpenPermissions,
@@ -91,7 +95,8 @@ fun SettingsContent(
     usageSeconds: Int,
     shortsOnScreen: Boolean,
     budgetExhausted: Boolean,
-    serviceRunning: Boolean,
+    monitoringActive: Boolean,
+    history: List<DayUsage>,
     onLimitChange: (Int) -> Unit,
     onEnabledChange: (Boolean) -> Unit,
     onOpenPermissions: () -> Unit,
@@ -123,8 +128,9 @@ fun SettingsContent(
                 limitMinutes = limitMinutes,
                 shortsOnScreen = shortsOnScreen,
                 budgetExhausted = budgetExhausted,
-                serviceRunning = serviceRunning,
+                monitoringActive = monitoringActive,
             )
+            StatsCard(history = history)
         }
     }
 }
@@ -211,7 +217,7 @@ private fun UsageCard(
     limitMinutes: Int,
     shortsOnScreen: Boolean,
     budgetExhausted: Boolean,
-    serviceRunning: Boolean,
+    monitoringActive: Boolean,
 ) {
     val usedMinutes = usageSeconds / 60
     val usedSeconds = usageSeconds % 60
@@ -241,12 +247,78 @@ private fun UsageCard(
             )
             Text(
                 text = buildString {
-                    append(if (serviceRunning) "Timer running" else "Timer stopped")
+                    append(if (monitoringActive) "Monitoring active" else "Monitoring off")
                     append(" · ")
                     append(if (shortsOnScreen) "Shorts on screen — counting" else "Shorts not on screen")
                 },
                 style = MaterialTheme.typography.bodySmall,
             )
+        }
+    }
+}
+
+/**
+ * Last seven days, most recent at the bottom. Days with no record show as zero rather than being
+ * skipped, so the chart always has the same shape.
+ */
+@Composable
+private fun StatsCard(history: List<DayUsage>) {
+    val byDate = remember(history) { history.associateBy { it.date } }
+    val days = remember(byDate) {
+        (6 downTo 0).map { back ->
+            val date = LocalDate.now().minusDays(back.toLong())
+            date to (byDate[date.toString()]?.seconds ?: 0)
+        }
+    }
+    val peak = days.maxOf { it.second }.coerceAtLeast(1)
+    val weekTotal = days.sumOf { it.second }
+
+    Card {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text("Last 7 days", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "${weekTotal / 60} min total · ${weekTotal / 60 / 7} min/day average",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+
+            days.forEach { (date, seconds) ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.width(40.dp),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(12.dp)
+                            .background(
+                                MaterialTheme.colorScheme.surfaceVariant,
+                                RoundedCornerShape(50),
+                            ),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(seconds.toFloat() / peak)
+                                .fillMaxHeight()
+                                .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(50)),
+                        )
+                    }
+                    Text(
+                        text = "${seconds / 60}m",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.width(36.dp),
+                    )
+                }
+            }
         }
     }
 }
@@ -261,7 +333,8 @@ private fun SettingsPreview() {
             usageSeconds = 12 * 60 + 34,
             shortsOnScreen = true,
             budgetExhausted = false,
-            serviceRunning = true,
+            monitoringActive = true,
+            history = listOf(DayUsage(LocalDate.now().toString(), 754)),
             onLimitChange = {},
             onEnabledChange = {},
             onOpenPermissions = {},

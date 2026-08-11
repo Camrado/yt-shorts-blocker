@@ -1,8 +1,5 @@
 package com.example.ytshortsblocker.ui
 
-import android.Manifest
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -21,10 +18,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -32,10 +25,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.core.app.ActivityCompat
 import com.example.ytshortsblocker.permissions.AppPermissions
 import com.example.ytshortsblocker.permissions.PermissionsState
-import com.example.ytshortsblocker.permissions.findActivity
 import com.example.ytshortsblocker.permissions.rememberPermissionsState
 import com.example.ytshortsblocker.ui.theme.YTShortsBlockerTheme
 
@@ -49,35 +40,10 @@ fun OnboardingScreen(
     val checker = rememberPermissionsState()
     val state = checker.state
 
-    var notificationsBlocked by remember { mutableStateOf(false) }
-
-    val notificationLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        checker.refresh()
-        if (!granted) {
-            val activity = context.findActivity()
-            notificationsBlocked = activity != null &&
-                !ActivityCompat.shouldShowRequestPermissionRationale(
-                    activity,
-                    Manifest.permission.POST_NOTIFICATIONS,
-                )
-        }
-    }
-
     OnboardingContent(
         state = state,
-        notificationsBlocked = notificationsBlocked,
-        notificationsRequired = AppPermissions.notificationPermissionRequired,
         onOpenAccessibility = { context.startActivity(AppPermissions.accessibilitySettingsIntent()) },
         onOpenOverlay = { context.startActivity(AppPermissions.overlaySettingsIntent(context)) },
-        onRequestNotifications = {
-            if (notificationsBlocked) {
-                context.startActivity(AppPermissions.appDetailsSettingsIntent(context))
-            } else {
-                notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        },
         onRefresh = checker.refresh,
         onContinue = onContinue,
         modifier = modifier,
@@ -88,11 +54,8 @@ fun OnboardingScreen(
 @Composable
 fun OnboardingContent(
     state: PermissionsState,
-    notificationsBlocked: Boolean,
-    notificationsRequired: Boolean,
     onOpenAccessibility: () -> Unit,
     onOpenOverlay: () -> Unit,
-    onRequestNotifications: () -> Unit,
     onRefresh: () -> Unit,
     onContinue: () -> Unit,
     modifier: Modifier = Modifier,
@@ -110,8 +73,8 @@ fun OnboardingContent(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                "This app needs three permissions to block Shorts. Two of them can only be granted " +
-                    "in system settings — Android will not show a popup for those.",
+                "This app needs two permissions to block Shorts. Neither can be granted from a " +
+                    "popup — both are switches you turn on in system settings.",
                 style = MaterialTheme.typography.bodyMedium,
             )
 
@@ -136,27 +99,6 @@ fun OnboardingContent(
                 note = "Opens straight to this app's toggle. Turn it on and press back.",
             )
 
-            PermissionCard(
-                step = 3,
-                title = "Notifications",
-                why = "Required for the always-on notification the timer service must show.",
-                granted = state.notifications,
-                buttonText = when {
-                    !notificationsRequired -> "Not needed"
-                    notificationsBlocked -> "Open app settings"
-                    else -> "Grant"
-                },
-                onClick = onRequestNotifications,
-                enabled = notificationsRequired && !state.notifications,
-                note = if (!notificationsRequired) {
-                    "Your Android version grants this automatically."
-                } else if (notificationsBlocked) {
-                    "The dialog will not show again. Go to Permissions → Notifications and allow it."
-                } else {
-                    "A normal Android popup appears — tap Allow."
-                },
-            )
-
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onRefresh) { Text("Re-check") }
                 Button(onClick = onContinue, enabled = state.allGranted) { Text("Continue") }
@@ -164,7 +106,7 @@ fun OnboardingContent(
 
             if (!state.allGranted) {
                 Text(
-                    "Continue unlocks once all three are granted.",
+                    "Continue unlocks once both are granted.",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -225,12 +167,9 @@ private fun StatusChip(granted: Boolean) {
 private fun OnboardingPreview() {
     YTShortsBlockerTheme {
         OnboardingContent(
-            state = PermissionsState(accessibility = false, overlay = true, notifications = true),
-            notificationsBlocked = false,
-            notificationsRequired = true,
+            state = PermissionsState(accessibility = false, overlay = true),
             onOpenAccessibility = {},
             onOpenOverlay = {},
-            onRequestNotifications = {},
             onRefresh = {},
             onContinue = {},
         )

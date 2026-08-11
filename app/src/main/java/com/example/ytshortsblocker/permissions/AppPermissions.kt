@@ -1,17 +1,13 @@
 package com.example.ytshortsblocker.permissions
 
-import android.Manifest
 import android.content.ComponentName
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.provider.Settings
 import android.text.TextUtils
 import androidx.activity.ComponentActivity
-import androidx.core.content.ContextCompat
 
 object AppPermissions {
 
@@ -38,20 +34,6 @@ object AppPermissions {
     }
 
     fun canDrawOverlays(context: Context): Boolean = Settings.canDrawOverlays(context)
-
-    fun hasNotificationPermission(context: Context): Boolean {
-        return if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            true
-        } else {
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS,
-            ) == PackageManager.PERMISSION_GRANTED
-        }
-    }
-
-    val notificationPermissionRequired: Boolean
-        get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
 
     fun accessibilitySettingsIntent(): Intent =
         Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)

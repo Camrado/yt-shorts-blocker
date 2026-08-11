@@ -22,10 +22,10 @@ object BlockerState {
     /** Today's limit, mirrored here so the overlay can show it without reading DataStore. */
     val limitMinutes: StateFlow<Int> = _limitMinutes.asStateFlow()
 
-    private val _serviceRunning = MutableStateFlow(false)
+    private val _monitoringActive = MutableStateFlow(false)
 
-    /** True while the foreground service is alive. */
-    val serviceRunning: StateFlow<Boolean> = _serviceRunning.asStateFlow()
+    /** True while the accessibility service is connected and tracking. */
+    val monitoringActive: StateFlow<Boolean> = _monitoringActive.asStateFlow()
 
     internal fun setBudgetExhausted(value: Boolean) {
         _budgetExhausted.value = value
@@ -35,7 +35,7 @@ object BlockerState {
         _limitMinutes.value = value
     }
 
-    internal fun setServiceRunning(value: Boolean) {
-        _serviceRunning.value = value
+    internal fun setMonitoringActive(value: Boolean) {
+        _monitoringActive.value = value
     }
 }

@@ -8,6 +8,7 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import com.example.ytshortsblocker.data.SettingsRepository
 import com.example.ytshortsblocker.overlay.BlockOverlayController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +26,9 @@ class ShortsAccessibilityService : AccessibilityService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private val overlay by lazy { BlockOverlayController(this) }
+    private val tracker by lazy {
+        UsageTracker(SettingsRepository(applicationContext), scope)
+    }
 
     private var lastEvaluationAt = 0L
     private var lastDumpAt = 0L
@@ -52,11 +56,10 @@ class ShortsAccessibilityService : AccessibilityService() {
      */
     private val watchdog = object : Runnable {
         override fun run() {
-            val root = rootInActiveWindow
-            if (root?.packageName?.toString() != ShortsSignature.YOUTUBE_PACKAGE) {
+            // Only answers "have we left YouTube?". Transitions *inside* YouTube always generate
+            // events, so re-running full detection here would duplicate work we already do.
+            if (rootInActiveWindow?.packageName?.toString() != ShortsSignature.YOUTUBE_PACKAGE) {
                 onRawSignal(false)
-            } else {
-                onRawSignal(ShortsDetector.detect(root))
             }
             handler.postDelayed(this, WATCHDOG_INTERVAL_MS)
         }
@@ -66,6 +69,8 @@ class ShortsAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         Log.d(TAG, "onServiceConnected — watching ${ShortsSignature.YOUTUBE_PACKAGE}")
         Log.d(TAG, "DEBUG_DUMP_TREE=$DEBUG_DUMP_TREE (dumps go to tag '$DUMP_TAG')")
+        BlockerState.setMonitoringActive(true)
+        tracker.start()
         observeBlockCondition()
     }
 
@@ -152,10 +157,14 @@ class ShortsAccessibilityService : AccessibilityService() {
         handler.removeCallbacksAndMessages(null)
         // hideNow, not hide: a pending delayed removal would never run once we are gone.
         overlay.hideNow()
-        scope.cancel()
+        tracker.stop()
         stableShorts = false
         pendingShorts = null
         ShortsDetectionState.set(false)
+        // Monitoring is over, so nothing can clear a stale block. Fail open.
+        BlockerState.setBudgetExhausted(false)
+        BlockerState.setMonitoringActive(false)
+        scope.cancel()
     }
 
     // ----- Debounce -----
