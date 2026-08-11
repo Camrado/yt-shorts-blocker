@@ -37,6 +37,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.ytshortsblocker.data.SettingsRepository
+import com.example.ytshortsblocker.service.BlockerState
+import com.example.ytshortsblocker.service.ShortsDetectionState
+import com.example.ytshortsblocker.service.UsageTrackingService
 import com.example.ytshortsblocker.ui.theme.YTShortsBlockerTheme
 import kotlinx.coroutines.launch
 
@@ -53,15 +56,28 @@ fun SettingsScreen(
     val enabled by repository.enabled.collectAsState(initial = SettingsRepository.DEFAULT_ENABLED)
     val usageSeconds by repository.usageSecondsToday.collectAsState(initial = 0)
 
+    val shortsOnScreen by ShortsDetectionState.isShortsOnScreen.collectAsState()
+    val budgetExhausted by BlockerState.budgetExhausted.collectAsState()
+    val serviceRunning by BlockerState.serviceRunning.collectAsState()
+
     LaunchedEffect(Unit) { repository.rolloverIfNewDay() }
+
+    // The service's own lifetime follows the toggle: it stops itself when disabled, and this
+    // starts it again when enabled. Starting a foreground service is only allowed while the app
+    // is in the foreground, which it is whenever this screen is showing.
+    LaunchedEffect(enabled) {
+        if (enabled) UsageTrackingService.start(context) else UsageTrackingService.stop(context)
+    }
 
     SettingsContent(
         limitMinutes = limitMinutes,
         enabled = enabled,
         usageSeconds = usageSeconds,
+        shortsOnScreen = shortsOnScreen,
+        budgetExhausted = budgetExhausted,
+        serviceRunning = serviceRunning,
         onLimitChange = { newLimit -> scope.launch { repository.setDailyLimitMinutes(newLimit) } },
         onEnabledChange = { value -> scope.launch { repository.setEnabled(value) } },
-        onAddDebugUsage = { scope.launch { repository.addUsageSeconds(5 * 60) } },
         onOpenPermissions = onOpenPermissions,
         modifier = modifier,
     )
@@ -73,9 +89,11 @@ fun SettingsContent(
     limitMinutes: Int,
     enabled: Boolean,
     usageSeconds: Int,
+    shortsOnScreen: Boolean,
+    budgetExhausted: Boolean,
+    serviceRunning: Boolean,
     onLimitChange: (Int) -> Unit,
     onEnabledChange: (Boolean) -> Unit,
-    onAddDebugUsage: () -> Unit,
     onOpenPermissions: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -100,7 +118,13 @@ fun SettingsContent(
         ) {
             EnableCard(enabled = enabled, onEnabledChange = onEnabledChange)
             LimitCard(limitMinutes = limitMinutes, onLimitChange = onLimitChange)
-            UsageCard(usageSeconds = usageSeconds, limitMinutes = limitMinutes, onAddDebugUsage = onAddDebugUsage)
+            UsageCard(
+                usageSeconds = usageSeconds,
+                limitMinutes = limitMinutes,
+                shortsOnScreen = shortsOnScreen,
+                budgetExhausted = budgetExhausted,
+                serviceRunning = serviceRunning,
+            )
         }
     }
 }
@@ -182,11 +206,18 @@ private fun LimitCard(limitMinutes: Int, onLimitChange: (Int) -> Unit) {
 }
 
 @Composable
-private fun UsageCard(usageSeconds: Int, limitMinutes: Int, onAddDebugUsage: () -> Unit) {
+private fun UsageCard(
+    usageSeconds: Int,
+    limitMinutes: Int,
+    shortsOnScreen: Boolean,
+    budgetExhausted: Boolean,
+    serviceRunning: Boolean,
+) {
     val usedMinutes = usageSeconds / 60
     val usedSeconds = usageSeconds % 60
     val limitSeconds = limitMinutes * 60
     val fraction = if (limitSeconds > 0) (usageSeconds.toFloat() / limitSeconds).coerceIn(0f, 1f) else 0f
+    val remaining = ((limitSeconds - usageSeconds) / 60).coerceAtLeast(0)
 
     Card {
         Column(
@@ -202,12 +233,20 @@ private fun UsageCard(usageSeconds: Int, limitMinutes: Int, onAddDebugUsage: () 
             )
             LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
             Text(
-                "Placeholder value — real time tracking arrives with the service step.",
+                text = when {
+                    budgetExhausted -> "Daily limit reached."
+                    else -> "$remaining min left today."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                text = buildString {
+                    append(if (serviceRunning) "Timer running" else "Timer stopped")
+                    append(" · ")
+                    append(if (shortsOnScreen) "Shorts on screen — counting" else "Shorts not on screen")
+                },
                 style = MaterialTheme.typography.bodySmall,
             )
-            OutlinedButton(onClick = onAddDebugUsage) {
-                Text("+5 min (debug)")
-            }
         }
     }
 }
@@ -220,9 +259,11 @@ private fun SettingsPreview() {
             limitMinutes = 30,
             enabled = true,
             usageSeconds = 12 * 60 + 34,
+            shortsOnScreen = true,
+            budgetExhausted = false,
+            serviceRunning = true,
             onLimitChange = {},
             onEnabledChange = {},
-            onAddDebugUsage = {},
             onOpenPermissions = {},
         )
     }
