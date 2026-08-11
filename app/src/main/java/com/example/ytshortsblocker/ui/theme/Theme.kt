@@ -12,33 +12,38 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = Indigo80,
+    onPrimary = OnIndigoDark,
+    primaryContainer = IndigoContainerDark,
+    onPrimaryContainer = Indigo80,
+    secondary = Slate80,
+    tertiary = Coral80,
+    background = SurfaceDark,
+    onBackground = TextDark,
+    surface = SurfaceDark,
+    onSurface = TextDark,
+    surfaceVariant = CardDark,
+    onSurfaceVariant = Slate80,
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    primary = Indigo40,
+    primaryContainer = IndigoContainerLight,
+    onPrimaryContainer = Indigo40,
+    secondary = Slate40,
+    tertiary = Coral40,
+    background = SurfaceLight,
+    surface = SurfaceLight,
+    surfaceVariant = CardLightVariant,
 )
 
 @Composable
 fun YTShortsBlockerTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
-    content: @Composable () -> Unit
+    // Off by default: dynamic colour would replace the palette above with wallpaper colours, and
+    // the status colours only read correctly against a known scheme.
+    dynamicColor: Boolean = false,
+    content: @Composable () -> Unit,
 ) {
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
@@ -53,6 +58,6 @@ fun YTShortsBlockerTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,
-        content = content
+        content = content,
     )
 }
