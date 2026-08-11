@@ -20,6 +20,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -40,7 +41,10 @@ import com.example.ytshortsblocker.ui.theme.YTShortsBlockerTheme
 import kotlinx.coroutines.launch
 
 @Composable
-fun SettingsScreen(modifier: Modifier = Modifier) {
+fun SettingsScreen(
+    onOpenPermissions: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val context = LocalContext.current
     val repository = remember { SettingsRepository(context.applicationContext) }
     val scope = rememberCoroutineScope()
@@ -58,6 +62,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
         onLimitChange = { newLimit -> scope.launch { repository.setDailyLimitMinutes(newLimit) } },
         onEnabledChange = { value -> scope.launch { repository.setEnabled(value) } },
         onAddDebugUsage = { scope.launch { repository.addUsageSeconds(5 * 60) } },
+        onOpenPermissions = onOpenPermissions,
         modifier = modifier,
     )
 }
@@ -71,11 +76,19 @@ fun SettingsContent(
     onLimitChange: (Int) -> Unit,
     onEnabledChange: (Boolean) -> Unit,
     onAddDebugUsage: () -> Unit,
+    onOpenPermissions: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        topBar = { TopAppBar(title = { Text("YT Shorts Blocker") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("YT Shorts Blocker") },
+                actions = {
+                    TextButton(onClick = onOpenPermissions) { Text("Permissions") }
+                },
+            )
+        },
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -210,6 +223,7 @@ private fun SettingsPreview() {
             onLimitChange = {},
             onEnabledChange = {},
             onAddDebugUsage = {},
+            onOpenPermissions = {},
         )
     }
 }
